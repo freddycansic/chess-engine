@@ -98,13 +98,9 @@ fn window_conf() -> Conf {
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    let attack_masks_rook = generate_attack_masks_rook();
-    // for mask in attack_masks_rook.into_iter() {
-    //     print_bitboard(mask);
-    //     println!()
-    // }
-
-    // print_bitboard(1);
+    for mask in bitboard::generate_attack_masks_knight().into_iter() {
+        print_bitboard(mask)
+    }
 
     // scale up svg
     let transform = quad_svg::Transform::from_scale(5.0, 5.0);

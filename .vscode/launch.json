@@ -3,7 +3,7 @@
     "configurations": [
         {
             "name": "Windows",
-            "program": "${workspaceRoot}/target/debug/main.exe",
+            "program": "${workspaceRoot}/target/debug/main",
             "type": "cppvsdbg",
             "request": "launch",
             "preLaunchTask": "rust: cargo build",
