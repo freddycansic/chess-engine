@@ -17,7 +17,7 @@ pub const RANK_7: u64 = RANK_1 << (8 * 6);
 pub const RANK_8: u64 = RANK_1 << (8 * 7);
 
 #[derive(Clone, Copy)]
-enum Direction {
+pub enum Direction {
     Up,
     UpRight,
     Right,
@@ -28,8 +28,12 @@ enum Direction {
     UpLeft
 }
 
-trait Bitboard {
+pub trait Bitboard {
     fn shift(&self, direction: Direction) -> Self;
+    fn flip_over_horizontal(&self) -> Self;
+    fn flip_over_vertical(&self) -> Self;
+    fn flip_diagonal_a8_h1(&self) -> Self;
+    fn rotate_90_clockwise(&self) -> Self;
 }
 
 impl Bitboard for u64 {
@@ -46,20 +50,67 @@ impl Bitboard for u64 {
             Direction::UpLeft => (self & !FILE_A) << 8 - 1,
         }
     }
+
+    fn rotate_90_clockwise(&self) -> u64 {
+        self.flip_diagonal_a8_h1().flip_over_horizontal()
+    }
+    
+    // what the fuck?
+    fn flip_diagonal_a8_h1(&self) -> u64 {
+        let mut bitboard = *self;
+
+        let k1 = 0x5500550055005500;
+        let k2 = 0x3333000033330000;
+        let k4 = 0x0f0f0f0f00000000;
+        let mut t = k4 & (bitboard ^ (bitboard << 28));
+        bitboard ^= t ^ (t >> 28);
+        t = k2 & (bitboard ^ (bitboard << 14));
+        bitboard ^= t ^ (t >> 14);
+        t = k1 & (bitboard ^ (bitboard << 7));
+        bitboard ^= t ^ (t >> 7);
+    
+        bitboard
+    }
+    
+    // what the fuck?
+    fn flip_over_vertical(&self) -> u64 {
+        let mut bitboard = *self;
+
+        let k1 = 0x5555555555555555;
+        let k2 = 0x3333333333333333;
+        let k4 = 0x0f0f0f0f0f0f0f0f;
+        bitboard = ((bitboard >> 1) & k1) +  2*(bitboard & k1);
+        bitboard = ((bitboard >> 2) & k2) +  4*(bitboard & k2);
+        bitboard = ((bitboard >> 4) & k4) + 16*(bitboard & k4);
+        
+        bitboard
+     }
+    
+    fn flip_over_horizontal(&self) -> u64 {
+        self.swap_bytes()
+    }
 }
 
-pub fn generate_attack_masks_rook() -> [u64; 64] {
-    let mut attack_masks = [0; 64];
+pub fn print_bitboard(bitboard: u64) {
+    let bitboard = bitboard.flip_over_vertical();
+    for i in 0..8 {
+        println!("{:08b}", (bitboard << i * 8) >> 7 * 8)
+    }
+    println!()
+}
+
+pub fn generate_move_masks_rook() -> [u64; 64] {
+    let mut move_masks = [0; 64];
 
     for i in 0..64 {
         let mut mask = 0;
         mask |= RANK_1 << (i / 8) * 8;
         mask |= FILE_A << i % 8;
 
-        attack_masks[i] = mask;
+        move_masks[i] = mask;
     }
 
-    attack_masks
+    move_masks
 }
 
 // generate one for white (idx 0) and one for black (idx 1)
@@ -77,14 +128,31 @@ pub fn generate_attack_masks_pawn() -> [[u64; 64]; 2] {
         attack_masks[0][i] = mask;
         
         // black
-        attack_masks[1][i] = flip_bitboard_over_horizontal(mask);
+        attack_masks[1][i] = mask.flip_over_horizontal();
     }
 
     attack_masks
 }
 
-pub fn generate_attack_masks_king() -> [u64; 64] {
-    let mut attack_masks = [0; 64];
+pub fn generate_move_masks_pawn() -> [[u64; 64]; 2] {
+    let mut move_masks = [[0; 64]; 2];
+
+    for i in 0..64 {
+        let mut mask = 0;
+        let current = 1 << i;
+
+        mask |= current.shift(Direction::Up);
+        mask |= (current & RANK_2).shift(Direction::Up).shift(Direction::Up);
+    
+        move_masks[0][i] = mask;
+        move_masks[1][i] = mask.flip_over_horizontal();
+    }
+
+    move_masks
+}
+
+pub fn generate_move_masks_king() -> [u64; 64] {
+    let mut move_masks = [0; 64];
 
     for i in 0..64 {
         let mut mask = 0;
@@ -99,14 +167,14 @@ pub fn generate_attack_masks_king() -> [u64; 64] {
         mask |= current.shift(Direction::Left);
         mask |= current.shift(Direction::UpLeft);
 
-        attack_masks[i] = mask;
+        move_masks[i] = mask;
     }
 
-    attack_masks
+    move_masks
 }
 
-pub fn generate_attack_masks_knight() -> [u64; 64] {
-    let mut attack_masks = [0; 64];
+pub fn generate_move_masks_knight() -> [u64; 64] {
+    let mut move_masks = [0; 64];
 
     for i in 0..64 {
         let mut mask = 0;
@@ -121,51 +189,49 @@ pub fn generate_attack_masks_knight() -> [u64; 64] {
         mask |= current.shift(Direction::Left).shift(Direction::UpLeft);
         mask |= current.shift(Direction::Left).shift(Direction::DownLeft);
 
-        attack_masks[i] = mask;
+        move_masks[i] = mask;
     }
 
-    attack_masks
+    move_masks
 }
 
-pub fn rotate_bitboard_90_clockwise(bitboard: u64) -> u64 {
-    flip_bitboard_over_horizontal(flip_bitboard_diagonal_a8_h1(bitboard))
+pub fn generate_move_masks_bishop() -> [u64; 64] {
+    let mut move_masks = [0; 64];
+
+    for i in 0..64 {
+        let mut mask = 0;
+        let current = 1_u64 << i;
+
+        let mut up_left_ray = current.shift(Direction::UpLeft);
+        let mut up_right_ray = current.shift(Direction::UpRight);
+        let mut down_left_ray = current.shift(Direction::DownLeft);
+        let mut down_right_ray = current.shift(Direction::DownRight);
+        // bruteforce rays past the edge of the board cause who cares anymore
+        for _ in 0..7 {
+            up_left_ray |= up_left_ray.shift(Direction::UpLeft);
+            up_right_ray |= up_right_ray.shift(Direction::UpRight);
+            down_left_ray |= down_left_ray.shift(Direction::DownLeft);
+            down_right_ray |= down_right_ray.shift(Direction::DownRight);
+        }
+
+        mask |= up_left_ray | up_right_ray | down_left_ray | down_right_ray;
+
+        move_masks[i] = mask;
+    }
+
+    move_masks
 }
 
-// what the fuck?
-pub fn flip_bitboard_diagonal_a8_h1(mut bitboard: u64) -> u64 {
-    let k1 = 0x5500550055005500;
-    let k2 = 0x3333000033330000;
-    let k4 = 0x0f0f0f0f00000000;
-    let mut t = k4 & (bitboard ^ (bitboard << 28));
-    bitboard ^= t ^ (t >> 28);
-    t = k2 & (bitboard ^ (bitboard << 14));
-    bitboard ^= t ^ (t >> 14);
-    t = k1 & (bitboard ^ (bitboard << 7));
-    bitboard ^= t ^ (t >> 7);
+pub fn generate_move_masks_queen() -> [u64; 64] {
+    let mut move_masks = [0; 64];
 
-    bitboard
-}
-
-// what the fuck?
-fn flip_bitboard_over_vertical(mut bitboard: u64) -> u64 {
-    let k1 = 0x5555555555555555;
-    let k2 = 0x3333333333333333;
-    let k4 = 0x0f0f0f0f0f0f0f0f;
-    bitboard = ((bitboard >> 1) & k1) +  2*(bitboard & k1);
-    bitboard = ((bitboard >> 2) & k2) +  4*(bitboard & k2);
-    bitboard = ((bitboard >> 4) & k4) + 16*(bitboard & k4);
+    // do it again cause who cares anymore
+    let rook_masks = generate_move_masks_rook();
+    let bishop_masks = generate_move_masks_bishop();
     
-    bitboard
- }
-
-pub fn flip_bitboard_over_horizontal(bitboard: u64) -> u64 {
-    bitboard.swap_bytes()
-}
-
-pub fn print_bitboard(bitboard: u64) {
-    let bitboard = flip_bitboard_over_vertical(bitboard);
-    for i in 0..8 {
-        println!("{:08b}", (bitboard << i * 8) >> 7 * 8)
+    for i in 0..64 {
+        move_masks[i] = rook_masks[i] | bishop_masks[i];
     }
-    println!()
+
+    move_masks
 }
