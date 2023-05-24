@@ -25,7 +25,7 @@ pub enum Direction {
     Down,
     DownLeft,
     Left,
-    UpLeft
+    UpLeft,
 }
 
 pub trait Bitboard {
@@ -54,7 +54,7 @@ impl Bitboard for u64 {
     fn rotate_90_clockwise(&self) -> u64 {
         self.flip_diagonal_a8_h1().flip_over_horizontal()
     }
-    
+
     // what the fuck?
     fn flip_diagonal_a8_h1(&self) -> u64 {
         let mut bitboard = *self;
@@ -68,10 +68,10 @@ impl Bitboard for u64 {
         bitboard ^= t ^ (t >> 14);
         t = k1 & (bitboard ^ (bitboard << 7));
         bitboard ^= t ^ (t >> 7);
-    
+
         bitboard
     }
-    
+
     // what the fuck?
     fn flip_over_vertical(&self) -> u64 {
         let mut bitboard = *self;
@@ -79,13 +79,13 @@ impl Bitboard for u64 {
         let k1 = 0x5555555555555555;
         let k2 = 0x3333333333333333;
         let k4 = 0x0f0f0f0f0f0f0f0f;
-        bitboard = ((bitboard >> 1) & k1) +  2*(bitboard & k1);
-        bitboard = ((bitboard >> 2) & k2) +  4*(bitboard & k2);
-        bitboard = ((bitboard >> 4) & k4) + 16*(bitboard & k4);
-        
+        bitboard = ((bitboard >> 1) & k1) + 2 * (bitboard & k1);
+        bitboard = ((bitboard >> 2) & k2) + 4 * (bitboard & k2);
+        bitboard = ((bitboard >> 4) & k4) + 16 * (bitboard & k4);
+
         bitboard
-     }
-    
+    }
+
     fn flip_over_horizontal(&self) -> u64 {
         self.swap_bytes()
     }
@@ -126,7 +126,7 @@ pub fn generate_attack_masks_pawn() -> [[u64; 64]; 2] {
 
         // white
         attack_masks[0][i] = mask;
-        
+
         // black
         attack_masks[1][i] = mask.flip_over_horizontal();
     }
@@ -143,7 +143,7 @@ pub fn generate_move_masks_pawn() -> [[u64; 64]; 2] {
 
         mask |= current.shift(Direction::Up);
         mask |= (current & RANK_2).shift(Direction::Up).shift(Direction::Up);
-    
+
         move_masks[0][i] = mask;
         move_masks[1][i] = mask.flip_over_horizontal();
     }
@@ -228,7 +228,7 @@ pub fn generate_move_masks_queen() -> [u64; 64] {
     // do it again cause who cares anymore
     let rook_masks = generate_move_masks_rook();
     let bishop_masks = generate_move_masks_bishop();
-    
+
     for i in 0..64 {
         move_masks[i] = rook_masks[i] | bishop_masks[i];
     }

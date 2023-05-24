@@ -55,7 +55,7 @@ impl Player {
                 color: color,
                 pawn_bitboard: pawn_bitboard.flip_over_horizontal(),
                 knight_bitboard: knight_bitboard.flip_over_horizontal(),
-                bishop_bitboard:bishop_bitboard.flip_over_horizontal(),
+                bishop_bitboard: bishop_bitboard.flip_over_horizontal(),
                 rook_bitboard: rook_bitboard.flip_over_horizontal(),
                 queen_bitboard: queen_bitboard.flip_over_horizontal(),
                 king_bitboard: king_bitboard.flip_over_horizontal(),
@@ -75,39 +75,31 @@ impl Player {
     pub fn as_pieces(&self) -> Vec<(Piece, usize, usize)> {
         let mut piece_coords = Vec::new();
 
-        match self.color {
-            Color::White => {
-                for (piece_type, piece_bitboard) in [
-                    (Piece::WhitePawn, self.pawn_bitboard),
-                    (Piece::WhiteKnight, self.knight_bitboard),
-                    (Piece::WhiteBishop, self.bishop_bitboard),
-                    (Piece::WhiteRook, self.rook_bitboard),
-                    (Piece::WhiteQueen, self.queen_bitboard),
-                    (Piece::WhiteKing, self.king_bitboard),
-                ].into_iter() {
-                    for i in 0..64 {
-                        let current = 1 << i;
-                        if current & piece_bitboard > 0 {
-                            piece_coords.push((piece_type, i % 8, i / 8))
-                        }
-                    }
-                }
-            },
-            Color::Black => {
-                for (piece_type, piece_bitboard) in [
-                    (Piece::BlackPawn, self.pawn_bitboard),
-                    (Piece::BlackKnight, self.knight_bitboard),
-                    (Piece::BlackBishop, self.bishop_bitboard),
-                    (Piece::BlackRook, self.rook_bitboard),
-                    (Piece::BlackQueen, self.queen_bitboard),
-                    (Piece::BlackKing, self.king_bitboard),
-                ].into_iter() {
-                    for i in 0..64 {
-                        let current = 1 << i;
-                        if current & piece_bitboard > 0 {
-                            piece_coords.push((piece_type, i % 8, i / 8))
-                        }
-                    }
+        let piece_type_to_bitboard = match self.color {
+            Color::White => [
+                (Piece::WhitePawn, self.pawn_bitboard),
+                (Piece::WhiteKnight, self.knight_bitboard),
+                (Piece::WhiteBishop, self.bishop_bitboard),
+                (Piece::WhiteRook, self.rook_bitboard),
+                (Piece::WhiteQueen, self.queen_bitboard),
+                (Piece::WhiteKing, self.king_bitboard),
+            ],
+
+            Color::Black => [
+                (Piece::BlackPawn, self.pawn_bitboard),
+                (Piece::BlackKnight, self.knight_bitboard),
+                (Piece::BlackBishop, self.bishop_bitboard),
+                (Piece::BlackRook, self.rook_bitboard),
+                (Piece::BlackQueen, self.queen_bitboard),
+                (Piece::BlackKing, self.king_bitboard),
+            ],
+        };
+
+        for (piece_type, piece_bitboard) in piece_type_to_bitboard.into_iter() {
+            for i in 0..64 {
+                let current = 1 << i;
+                if current & piece_bitboard > 0 {
+                    piece_coords.push((piece_type, i % 8, i / 8))
                 }
             }
         }
