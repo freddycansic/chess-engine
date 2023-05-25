@@ -1,6 +1,6 @@
 use crate::bitboard::Bitboard;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Color {
     White,
     Black,
@@ -23,13 +23,13 @@ pub enum Piece {
 }
 
 pub struct Player {
-    color: Color,
-    pawn_bitboard: u64,
-    knight_bitboard: u64,
-    bishop_bitboard: u64,
-    rook_bitboard: u64,
-    queen_bitboard: u64,
-    king_bitboard: u64,
+    pub color: Color,
+    pub pawn_bitboard: u64,
+    pub knight_bitboard: u64,
+    pub bishop_bitboard: u64,
+    pub rook_bitboard: u64,
+    pub queen_bitboard: u64,
+    pub king_bitboard: u64,
 }
 
 impl Player {
@@ -38,8 +38,8 @@ impl Player {
         let knight_bitboard = 0b01000010;
         let bishop_bitboard = 0b00100100;
         let rook_bitboard = 0b10000001;
-        let king_bitboard = 0b00001000;
-        let queen_bitboard = 0b00010000;
+        let king_bitboard = 0b00010000;
+        let queen_bitboard = 0b00001000;
 
         match color {
             Color::White => Player {
