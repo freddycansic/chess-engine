@@ -1,7 +1,4 @@
-use chess_engine::{
-    bitboard::*,
-    player::*,
-};
+use chess_engine::{bitboard::*, player::*};
 
 use macroquad::{
     prelude::{is_mouse_button_down, mouse_position, MouseButton, Rect, Vec2, WHITE},
@@ -277,20 +274,20 @@ async fn main() {
                     let black_bitboard = black_player.all_bitboards();
                     let whole_bitboard = white_bitboard | black_bitboard;
 
-                    let enemy_board = match me_play_as {
-                        Color::White => black_bitboard,
-                        Color::Black => white_bitboard,
+                    let (friendly_board, enemy_board) = match me_play_as {
+                        Color::White => (white_bitboard, black_bitboard),
+                        Color::Black => (black_bitboard, white_bitboard),
                     };
 
                     let possible_moves = match selected_piece {
                         // TODO pawn takes moves
-                        Piece::WhitePawn => all_pawn_moves_white[board_index] & !whole_bitboard,
-                        Piece::BlackPawn => all_pawn_moves_black[board_index] & !whole_bitboard,
+                        Piece::WhitePawn => possible_moves_pawn(&all_pawn_moves_white, &all_pawn_attack_moves_white, me_play_as),
+                        Piece::BlackPawn => possible_moves_pawn(&all_pawn_moves_black, &all_pawn_attack_moves_black, me_play_as),
                         Piece::WhiteKnight | Piece::BlackKnight => {
-                            all_knight_moves[board_index] & !whole_bitboard
+                            all_knight_moves[board_index] & !friendly_board
                         }
                         Piece::WhiteKing | Piece::BlackKing => {
-                            all_king_moves[board_index] & !whole_bitboard
+                            all_king_moves[board_index] & !friendly_board
                         }
                         Piece::WhiteBishop | Piece::BlackBishop => possible_moves_bishop(
                             enemy_board,
