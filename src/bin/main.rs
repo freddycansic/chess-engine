@@ -1,10 +1,10 @@
 use chess_engine::{
-    bitboard::{self, *},
+    bitboard::*,
     player::*,
 };
 
 use macroquad::{
-    prelude::{is_mouse_button_down, mouse_position, MouseButton, Rect, Vec2, BLUE, RED, WHITE},
+    prelude::{is_mouse_button_down, mouse_position, MouseButton, Rect, Vec2, WHITE},
     shapes::draw_rectangle,
     texture::{draw_texture_ex, DrawTextureParams},
     window::{clear_background, next_frame, screen_height, screen_width, Conf},

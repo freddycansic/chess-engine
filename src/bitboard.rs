@@ -298,7 +298,7 @@ pub fn possible_moves_queen(
 }
 
 fn closest_sliding_moves(ray_direction: Direction, opposite_direction: Direction, enemy_bitboard: u64, blockers_bitboard: u64, current: u64) -> u64 {
-    // cast a ray, if we hit an enemy blocker then return, if we hit a friendly blocker then shift the ray back one place as to not allow taking of own moves and return
+    // cast a ray, if we hit an enemy blocker then return, if we hit a friendly blocker then shift the ray back one place as to not allow taking of own pieces and return
     let mut current_ray = current.shift(ray_direction);
     
     for _ in 0..8 {
