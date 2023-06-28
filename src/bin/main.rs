@@ -1,15 +1,12 @@
-use chess_engine::{bitboard::*, player::*};
+use chess_engine::{bitboard::*, player::*, rendering::*};
 
 use macroquad::{
-    prelude::{is_mouse_button_down, mouse_position, MouseButton, Rect, Vec2, WHITE},
-    shapes::draw_rectangle,
-    texture::{draw_texture_ex, DrawTextureParams},
+    prelude::{
+        is_mouse_button_down, is_mouse_button_released, mouse_position, MouseButton, Rect, Vec2,
+        WHITE,
+    },
     window::{clear_background, next_frame, screen_height, screen_width, Conf},
 };
-
-// the board should take up 80% of the height of the window
-const BOARD_RATIO: f32 = 0.8;
-const PIECE_SQUARE_RATIO: f32 = 0.9;
 
 fn window_conf() -> Conf {
     Conf {
@@ -23,109 +20,11 @@ fn window_conf() -> Conf {
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    // scale up svg
-    let transform = quad_svg::Transform::from_scale(5.0, 5.0);
-    let piece_textures = rustc_hash::FxHashMap::from_iter([
-        (
-            Piece::WhitePawn,
-            quad_svg::svg_to_texture(
-                &std::fs::read_to_string("res/white_pawn.svg").unwrap(),
-                &transform,
-            )
-            .unwrap(),
-        ),
-        (
-            Piece::WhiteKnight,
-            quad_svg::svg_to_texture(
-                &std::fs::read_to_string("res/white_knight.svg").unwrap(),
-                &transform,
-            )
-            .unwrap(),
-        ),
-        (
-            Piece::WhiteBishop,
-            quad_svg::svg_to_texture(
-                &std::fs::read_to_string("res/white_bishop.svg").unwrap(),
-                &transform,
-            )
-            .unwrap(),
-        ),
-        (
-            Piece::WhiteRook,
-            quad_svg::svg_to_texture(
-                &std::fs::read_to_string("res/white_rook.svg").unwrap(),
-                &transform,
-            )
-            .unwrap(),
-        ),
-        (
-            Piece::WhiteQueen,
-            quad_svg::svg_to_texture(
-                &std::fs::read_to_string("res/white_queen.svg").unwrap(),
-                &transform,
-            )
-            .unwrap(),
-        ),
-        (
-            Piece::WhiteKing,
-            quad_svg::svg_to_texture(
-                &std::fs::read_to_string("res/white_king.svg").unwrap(),
-                &transform,
-            )
-            .unwrap(),
-        ),
-        (
-            Piece::BlackPawn,
-            quad_svg::svg_to_texture(
-                &std::fs::read_to_string("res/black_pawn.svg").unwrap(),
-                &transform,
-            )
-            .unwrap(),
-        ),
-        (
-            Piece::BlackKnight,
-            quad_svg::svg_to_texture(
-                &std::fs::read_to_string("res/black_knight.svg").unwrap(),
-                &transform,
-            )
-            .unwrap(),
-        ),
-        (
-            Piece::BlackBishop,
-            quad_svg::svg_to_texture(
-                &std::fs::read_to_string("res/black_bishop.svg").unwrap(),
-                &transform,
-            )
-            .unwrap(),
-        ),
-        (
-            Piece::BlackRook,
-            quad_svg::svg_to_texture(
-                &std::fs::read_to_string("res/black_rook.svg").unwrap(),
-                &transform,
-            )
-            .unwrap(),
-        ),
-        (
-            Piece::BlackQueen,
-            quad_svg::svg_to_texture(
-                &std::fs::read_to_string("res/black_queen.svg").unwrap(),
-                &transform,
-            )
-            .unwrap(),
-        ),
-        (
-            Piece::BlackKing,
-            quad_svg::svg_to_texture(
-                &std::fs::read_to_string("res/black_king.svg").unwrap(),
-                &transform,
-            )
-            .unwrap(),
-        ),
-    ]);
+    let piece_textures = load_piece_textures();
 
-    let white_player = Player::new(Color::White);
-    let black_player = Player::new(Color::Black);
+    let mut white_player = Player::new(Color::White);
+    let mut black_player = Player::new(Color::Black);
+    println!("{:#?}", white_player.bishop_bitboard.to_2d_coordinates());
 
     let all_pawn_moves = generate_move_masks_pawn();
     let all_pawn_moves_white = all_pawn_moves[0];
@@ -139,7 +38,20 @@ async fn main() {
     let all_queen_moves = generate_move_masks_queen();
     let all_king_moves = generate_move_masks_king();
 
-    let me_play_as = Color::White;
+    for pawn_move in all_pawn_moves_white {
+        print_bitboard(pawn_move)
+    }
+
+    println!("BLACK");
+    for pawn_move in all_pawn_moves_black {
+        print_bitboard(pawn_move)
+    }
+
+    let mut me_play_as = Color::White;
+    let mut current_start_bitboard = 0;
+    let mut current_selected_piece = Piece::WhitePawn;
+    let mut dragging_piece = false;
+    let mut possible_moves = 0;
 
     loop {
         let board_length = screen_height() * BOARD_RATIO;
@@ -149,173 +61,238 @@ async fn main() {
 
         clear_background(WHITE);
 
-        for rank in 0..8 {
-            for file in 0..8 {
-                // have to use this in this scope because i have my own color struct whose constructor macro color_u8 is trying to call
-                use macroquad::color::Color;
-                draw_rectangle(
-                    board_start_x + file as f32 * square_length,
-                    board_start_y + rank as f32 * square_length,
-                    square_length,
-                    square_length,
-                    if (rank + file) % 2 == 0 {
-                        // chess com beige = white
-                        macroquad::color_u8!(0xed, 0xed, 0xd1, 0xff)
-                    } else {
-                        // chess com green = black
-                        macroquad::color_u8!(0x75, 0x95, 0x57, 0xff)
-                    },
-                );
-            }
-        }
+        render_board(
+            possible_moves,
+            &white_player,
+            &black_player,
+            board_length,
+            square_length,
+            board_start_x,
+            board_start_y,
+            &piece_textures,
+        );
 
-        for player in [&white_player, &black_player] {
-            for (piece_type, file, rank) in player.as_pieces() {
-                let piece_length = square_length * PIECE_SQUARE_RATIO;
-                let square_piece_difference = square_length - piece_length;
+        let mouse_pos = mouse_position();
+        let mouse_pos = Vec2::new(mouse_pos.0, mouse_pos.1);
 
-                // magic fix to translate coodinates given from as_pieces to screen coords
-                let rank = 8 - rank + 1;
+        if Rect::new(board_start_x, board_start_y, board_length, board_length).contains(mouse_pos) {
+            let file = ((mouse_pos.x - board_start_x) / square_length) as usize;
+            // flip rank since mouse pos measured from top left and board measured from bottom left
+            let rank = 7 - ((mouse_pos.y - board_start_y) / square_length) as usize;
 
-                // use draw_texture_ex for scaling
-                draw_texture_ex(
-                    piece_textures[&piece_type],
-                    screen_width() / 2.0 - board_length / 2.0
-                        + square_piece_difference / 2.0
-                        + file as f32 * square_length,
-                    board_length - screen_height() / 2.0 - board_length / 2.0
-                        + square_piece_difference / 2.0
-                        + rank as f32 * square_length,
-                    WHITE,
-                    DrawTextureParams {
-                        dest_size: Some(Vec2 {
-                            x: piece_length,
-                            y: piece_length,
-                        }),
-                        ..Default::default()
-                    },
-                )
-            }
-        }
+            // get piece in square
+            let hovered_square_bitboard = 1 << 8 * rank + file;
 
-        if is_mouse_button_down(MouseButton::Left) {
-            let mouse_pos = mouse_position();
-            let mouse_pos = Vec2::new(mouse_pos.0, mouse_pos.1);
-
-            if Rect::new(board_start_x, board_start_y, board_length, board_length)
-                .contains(mouse_pos)
-            {
-                let file = ((mouse_pos.x - board_start_x) / square_length) as usize;
-                // flip rank since mouse pos measured from top left and board measured from bottom left
-                let rank = 7 - ((mouse_pos.y - board_start_y) / square_length) as usize;
-
-                // get piece in square
-                let selected_square_bitboard = 1 << 8 * rank + file;
-
-                let selected_player_piece_type_bitboard = match selected_square_bitboard {
-                    bitboard if bitboard & white_player.pawn_bitboard > 0 => {
-                        Some((&white_player, Piece::WhitePawn, white_player.pawn_bitboard))
-                    }
-                    bitboard if bitboard & white_player.knight_bitboard > 0 => Some((
-                        &white_player,
-                        Piece::WhiteKnight,
-                        white_player.knight_bitboard,
-                    )),
-                    bitboard if bitboard & white_player.bishop_bitboard > 0 => Some((
-                        &white_player,
-                        Piece::WhiteBishop,
-                        white_player.bishop_bitboard,
-                    )),
-                    bitboard if bitboard & white_player.rook_bitboard > 0 => {
-                        Some((&white_player, Piece::WhiteRook, white_player.rook_bitboard))
-                    }
-                    bitboard if bitboard & white_player.queen_bitboard > 0 => Some((
-                        &white_player,
-                        Piece::WhiteQueen,
-                        white_player.queen_bitboard,
-                    )),
-                    bitboard if bitboard & white_player.king_bitboard > 0 => {
-                        Some((&white_player, Piece::WhiteKing, white_player.king_bitboard))
-                    }
-                    bitboard if bitboard & black_player.pawn_bitboard > 0 => {
-                        Some((&black_player, Piece::BlackPawn, black_player.pawn_bitboard))
-                    }
-                    bitboard if bitboard & black_player.knight_bitboard > 0 => Some((
-                        &black_player,
-                        Piece::BlackKnight,
-                        black_player.knight_bitboard,
-                    )),
-                    bitboard if bitboard & black_player.bishop_bitboard > 0 => Some((
-                        &black_player,
-                        Piece::BlackBishop,
-                        black_player.bishop_bitboard,
-                    )),
-                    bitboard if bitboard & black_player.rook_bitboard > 0 => {
-                        Some((&black_player, Piece::BlackRook, black_player.rook_bitboard))
-                    }
-                    bitboard if bitboard & black_player.queen_bitboard > 0 => Some((
-                        &black_player,
-                        Piece::BlackQueen,
-                        black_player.queen_bitboard,
-                    )),
-                    bitboard if bitboard & black_player.king_bitboard > 0 => {
-                        Some((&black_player, Piece::BlackKing, black_player.king_bitboard))
-                    }
-                    _ => None,
-                };
-
-                if let Some((selected_player, selected_piece, selected_bitboard)) =
-                    selected_player_piece_type_bitboard
+            if is_mouse_button_down(MouseButton::Left) && !dragging_piece {
+                if let Some((selected_color, selected_piece, _selected_bitboard)) =
+                    get_square_info(hovered_square_bitboard, &white_player, &black_player)
                 {
-                    println!("{:?} {:?}", selected_player.color, selected_piece);
+                    current_start_bitboard = hovered_square_bitboard;
+                    current_selected_piece = selected_piece;
 
-                    let board_index = rank * 8 + file;
-                    let white_bitboard = white_player.all_bitboards();
-                    let black_bitboard = black_player.all_bitboards();
-                    let whole_bitboard = white_bitboard | black_bitboard;
+                    if selected_color == me_play_as {
+                        println!("{:?} {:?}", selected_color, selected_piece);
 
-                    let (friendly_board, enemy_board) = match me_play_as {
-                        Color::White => (white_bitboard, black_bitboard),
-                        Color::Black => (black_bitboard, white_bitboard),
-                    };
+                        let board_index = rank * 8 + file;
+                        let white_bitboard = white_player.all_bitboards();
+                        let black_bitboard = black_player.all_bitboards();
+                        let whole_bitboard = white_bitboard | black_bitboard;
 
-                    let possible_moves = match selected_piece {
-                        // TODO pawn takes moves
-                        Piece::WhitePawn => possible_moves_pawn(&all_pawn_moves_white, &all_pawn_attack_moves_white, me_play_as),
-                        Piece::BlackPawn => possible_moves_pawn(&all_pawn_moves_black, &all_pawn_attack_moves_black, me_play_as),
-                        Piece::WhiteKnight | Piece::BlackKnight => {
-                            all_knight_moves[board_index] & !friendly_board
-                        }
-                        Piece::WhiteKing | Piece::BlackKing => {
-                            all_king_moves[board_index] & !friendly_board
-                        }
-                        Piece::WhiteBishop | Piece::BlackBishop => possible_moves_bishop(
-                            enemy_board,
+                        let (friendly_bitboard, enemy_bitboard) = match me_play_as {
+                            Color::White => (white_bitboard, black_bitboard),
+                            Color::Black => (black_bitboard, white_bitboard),
+                        };
+
+                        possible_moves = get_possible_moves(
+                            selected_piece,
                             whole_bitboard,
+                            friendly_bitboard,
+                            enemy_bitboard,
+                            board_index,
+                            &all_pawn_moves_white,
+                            &all_pawn_attack_moves_white,
+                            &all_pawn_moves_black,
+                            &all_pawn_attack_moves_black,
+                            &all_knight_moves,
                             &all_bishop_moves,
-                            board_index,
-                        ),
-                        Piece::WhiteQueen | Piece::BlackQueen => possible_moves_queen(
-                            enemy_board,
-                            whole_bitboard,
-                            &all_queen_moves,
-                            board_index,
-                        ),
-                        Piece::WhiteRook | Piece::BlackRook => possible_moves_rook(
-                            enemy_board,
-                            whole_bitboard,
                             &all_rook_moves,
-                            board_index,
-                        ),
+                            &all_queen_moves,
+                            &all_king_moves,
+                        );
+
+                        println!("START POS");
+                        print_bitboard(hovered_square_bitboard);
+
+                        println!("POSSIBLE MOVES");
+                        print_bitboard(possible_moves);
+
+                        dragging_piece = true;
+                    }
+                }
+            } else if dragging_piece && is_mouse_button_released(MouseButton::Left) {
+                println!("DEST POS");
+                print_bitboard(hovered_square_bitboard);
+
+                if hovered_square_bitboard & possible_moves > 0 {
+                    println!("VALID");
+                    
+                    if let Some((_destination_color, destination_piece, _destination_bitboard)) = get_square_info(hovered_square_bitboard, &white_player, &black_player) {
+                        match destination_piece {
+                            Piece::WhitePawn => white_player.pawn_bitboard &= !hovered_square_bitboard,
+                            Piece::WhiteKnight => white_player.knight_bitboard &= !hovered_square_bitboard,
+                            Piece::WhiteBishop => white_player.bishop_bitboard &= !hovered_square_bitboard,
+                            Piece::WhiteRook => white_player.rook_bitboard &= !hovered_square_bitboard,
+                            Piece::WhiteQueen => white_player.queen_bitboard &= !hovered_square_bitboard,
+                            Piece::WhiteKing => white_player.king_bitboard &= !hovered_square_bitboard,
+                            Piece::BlackPawn => black_player.pawn_bitboard &= !hovered_square_bitboard,
+                            Piece::BlackKnight => black_player.knight_bitboard &= !hovered_square_bitboard,
+                            Piece::BlackBishop => black_player.bishop_bitboard &= !hovered_square_bitboard,
+                            Piece::BlackRook => black_player.rook_bitboard &= !hovered_square_bitboard,
+                            Piece::BlackQueen => black_player.queen_bitboard &= !hovered_square_bitboard,
+                            Piece::BlackKing => black_player.king_bitboard &= !hovered_square_bitboard
+                        };
+                    }
+
+                    let move_piece = |bitboard: &mut u64| {
+                        *bitboard &= !current_start_bitboard;
+                        *bitboard |= hovered_square_bitboard
                     };
 
-                    // for rook bishop queen bitscan from current position in all directions until a 1 is hit, all 0s before then become 1s and valid moves
+                    match current_selected_piece {
+                        Piece::WhitePawn => move_piece(&mut white_player.pawn_bitboard),
+                        Piece::WhiteKnight => move_piece(&mut white_player.knight_bitboard),
+                        Piece::WhiteBishop => move_piece(&mut white_player.bishop_bitboard),
+                        Piece::WhiteRook => move_piece(&mut white_player.rook_bitboard),
+                        Piece::WhiteQueen => move_piece(&mut white_player.queen_bitboard),
+                        Piece::WhiteKing => move_piece(&mut white_player.king_bitboard),
+                        Piece::BlackPawn => move_piece(&mut black_player.pawn_bitboard),
+                        Piece::BlackKnight => move_piece(&mut black_player.knight_bitboard),
+                        Piece::BlackBishop => move_piece(&mut black_player.bishop_bitboard),
+                        Piece::BlackRook => move_piece(&mut black_player.rook_bitboard),
+                        Piece::BlackQueen => move_piece(&mut black_player.queen_bitboard),
+                        Piece::BlackKing => move_piece(&mut black_player.king_bitboard)
+                    };
 
-                    print_bitboard(possible_moves);
+                    if me_play_as == Color::White {
+                        me_play_as = Color::Black
+                    } else {
+                        me_play_as = Color::White
+                    }
                 }
+
+                dragging_piece = false;
+                possible_moves = 0
             }
         }
 
         next_frame().await
+    }
+}
+
+fn get_possible_moves(
+    selected_piece: Piece,
+    whole_bitboard: u64,
+    friendly_bitboard: u64,
+    enemy_bitboard: u64,
+    board_index: usize,
+    all_pawn_moves_white: &[u64; 64],
+    all_pawn_attack_moves_white: &[u64; 64],
+    all_pawn_moves_black: &[u64; 64],
+    all_pawn_attack_moves_black: &[u64; 64],
+    all_knight_moves: &[u64; 64],
+    all_bishop_moves: &[u64; 64],
+    all_rook_moves: &[u64; 64],
+    all_queen_moves: &[u64; 64],
+    all_king_moves: &[u64; 64],
+) -> u64 {
+    match selected_piece {
+        // TODO pawn takes moves
+        Piece::WhitePawn => possible_moves_pawn(
+            enemy_bitboard,
+            whole_bitboard,
+            &all_pawn_moves_white,
+            &all_pawn_attack_moves_white,
+            board_index,
+        ),
+        Piece::BlackPawn => possible_moves_pawn(
+            enemy_bitboard,
+            whole_bitboard,
+            &all_pawn_moves_black,
+            &all_pawn_attack_moves_black,
+            board_index,
+        ),
+        Piece::WhiteKnight | Piece::BlackKnight => {
+            all_knight_moves[board_index] & !friendly_bitboard
+        }
+        Piece::WhiteKing | Piece::BlackKing => all_king_moves[board_index] & !friendly_bitboard,
+        Piece::WhiteBishop | Piece::BlackBishop => possible_moves_bishop(
+            enemy_bitboard,
+            whole_bitboard,
+            &all_bishop_moves,
+            board_index,
+        ),
+        Piece::WhiteQueen | Piece::BlackQueen => possible_moves_queen(
+            enemy_bitboard,
+            whole_bitboard,
+            &all_queen_moves,
+            board_index,
+        ),
+        Piece::WhiteRook | Piece::BlackRook => {
+            possible_moves_rook(enemy_bitboard, whole_bitboard, &all_rook_moves, board_index)
+        }
+    }
+}
+
+fn get_square_info<'a>(
+    selected_square_bitboard: u64,
+    white_player: &'a Player,
+    black_player: &'a Player,
+) -> Option<(Color, Piece, u64)> {
+    match selected_square_bitboard {
+        bitboard if bitboard & white_player.pawn_bitboard > 0 => {
+            Some((Color::White, Piece::WhitePawn, white_player.pawn_bitboard))
+        }
+        bitboard if bitboard & white_player.knight_bitboard > 0 => Some((
+            Color::White,
+            Piece::WhiteKnight,
+            white_player.knight_bitboard,
+        )),
+        bitboard if bitboard & white_player.bishop_bitboard > 0 => Some((
+            Color::White,
+            Piece::WhiteBishop,
+            white_player.bishop_bitboard,
+        )),
+        bitboard if bitboard & white_player.rook_bitboard > 0 => {
+            Some((Color::White, Piece::WhiteRook, white_player.rook_bitboard))
+        }
+        bitboard if bitboard & white_player.queen_bitboard > 0 => {
+            Some((Color::White, Piece::WhiteQueen, white_player.queen_bitboard))
+        }
+        bitboard if bitboard & white_player.king_bitboard > 0 => {
+            Some((Color::White, Piece::WhiteKing, white_player.king_bitboard))
+        }
+        bitboard if bitboard & black_player.pawn_bitboard > 0 => {
+            Some((Color::Black, Piece::BlackPawn, black_player.pawn_bitboard))
+        }
+        bitboard if bitboard & black_player.knight_bitboard > 0 => Some((
+            Color::Black,
+            Piece::BlackKnight,
+            black_player.knight_bitboard,
+        )),
+        bitboard if bitboard & black_player.bishop_bitboard > 0 => Some((
+            Color::Black,
+            Piece::BlackBishop,
+            black_player.bishop_bitboard,
+        )),
+        bitboard if bitboard & black_player.rook_bitboard > 0 => {
+            Some((Color::Black, Piece::BlackRook, black_player.rook_bitboard))
+        }
+        bitboard if bitboard & black_player.queen_bitboard > 0 => {
+            Some((Color::Black, Piece::BlackQueen, black_player.queen_bitboard))
+        }
+        bitboard if bitboard & black_player.king_bitboard > 0 => {
+            Some((Color::Black, Piece::BlackKing, black_player.king_bitboard))
+        }
+        _ => None,
     }
 }

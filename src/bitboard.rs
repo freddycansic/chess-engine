@@ -36,6 +36,7 @@ pub trait Bitboard {
     fn flip_over_vertical(&self) -> Self;
     fn flip_diagonal_a8_h1(&self) -> Self;
     fn rotate_90_clockwise(&self) -> Self;
+    fn to_2d_coordinates(&self) -> Vec<(usize, usize)>;
 }
 
 impl Bitboard for u64 {
@@ -91,6 +92,20 @@ impl Bitboard for u64 {
     fn flip_over_horizontal(&self) -> u64 {
         self.swap_bytes()
     }
+
+    fn to_2d_coordinates(&self) -> Vec<(usize, usize)> {
+        let mut result = Vec::new();
+
+        for i in 0..64 {
+            let current = 1 << i;
+
+            if current & self > 0 {
+                result.push((i % 8, i / 8))
+            }
+        }
+
+        result
+    }
 }
 
 pub fn print_bitboard(bitboard: u64) {
@@ -130,8 +145,11 @@ pub fn generate_attack_masks_pawn() -> [[u64; 64]; 2] {
         // white
         attack_masks[0][i] = mask;
 
+        mask = current.shift(Direction::DownLeft);
+        mask |= current.shift(Direction::DownRight);
+
         // black
-        attack_masks[1][i] = mask.flip_over_horizontal();
+        attack_masks[1][i] = mask;
     }
 
     attack_masks
@@ -148,10 +166,12 @@ pub fn generate_move_masks_pawn() -> [[u64; 64]; 2] {
         mask |= (current & RANK_2).shift(Direction::Up).shift(Direction::Up);
 
         move_masks[0][i] = mask;
-        move_masks[1][i] = mask.flip_over_horizontal();
-    }
 
-    move_masks[1].reverse();
+        mask = current.shift(Direction::Down);
+        mask |= (current & RANK_7).shift(Direction::Down).shift(Direction::Down);
+
+        move_masks[1][i] = mask;
+    }
 
     move_masks
 }
@@ -335,6 +355,8 @@ pub fn possible_moves_queen(
     let blockers_bitboard = possible_moves & whole_bitboard;
     let current = 1 << board_index;
 
+    // todo replace with rook + bishop?
+
     let left_ray = closest_sliding_moves(
         Direction::Left,
         Direction::Right,
@@ -402,17 +424,19 @@ pub fn possible_moves_queen(
         | down_ray
 }
 
-pub fn possible_moves_pawn(color: Color, enemy_bitboard: u64, whole_bitboard: u64, all_pawn_moves: &[u64; 64], all_pawn_attack_moves: &[u64; 64], board_index: usize) -> u64 {
-    let pawn_moves = all_pawn_moves[board_index] & !whole_bitboard;
+pub fn possible_moves_pawn(
+    enemy_bitboard: u64,
+    whole_bitboard: u64,
+    all_pawn_moves: &[u64; 64],
+    all_pawn_attack_moves: &[u64; 64],
+    board_index: usize,
+) -> u64 {
+    // TODO bug if something in front of pawn which has not yet moved, could potentially jump over blocking piece
 
-    let attack_moves = match color {
-        Color::White => {
-            // check up left, up right for enemy piece
-        }
-        Color::Black => {
-            // check down left, down right for enemy piece
-        }
-    };
+    let pawn_moves = all_pawn_moves[board_index] & !whole_bitboard;
+    let attack_moves = all_pawn_attack_moves[board_index] & enemy_bitboard;
+
+    pawn_moves | attack_moves
 }
 
 fn closest_sliding_moves(

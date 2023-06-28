@@ -1,9 +1,19 @@
 use crate::bitboard::Bitboard;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Color {
     White,
     Black,
+}
+
+impl Color {
+    pub fn opposite_color(&self) -> Self {
+        if *self == Color::White {
+            Color::Black
+        } else {
+            Color::White
+        }
+    }
 }
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
